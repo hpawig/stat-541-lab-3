@@ -1,0 +1,593 @@
+---
+title: "Lab 3"
+editor: source
+author: Hannah Pawig
+format:
+  dashboard:
+    theme: lux
+    orientation: columns
+    nav-buttons:
+      - icon: instagram
+        href: https://www.instagram.com/hannahpawig/
+      - icon: facebook
+        href: https://www.facebook.com/hannah.pawig.7
+      - icon: linkedin
+        href: https://www.linkedin.com/in/hannahpawig/
+      - icon: github
+        href: https://github.com/hpawig/stat-541-lab-3
+      - icon: twitter
+        href: https://twitter.com/hannahpawig
+logo: "images/navigation-logo.svg"
+logo-alt: "Red colored navigation logo pointing upward."
+---
+
+
+```{r}
+#| message: false
+#| label: packages
+# Package names
+packages <- c("tidyverse", "here", "readxl", "scales", "RColorBrewer", "leaflet",
+              "sf", "rnaturalearth", "countrycode", "plotly", "janitor",
+              "rnaturalearthdata")
+
+
+# Install packages not yet installed
+installed_packages <- packages %in% rownames(installed.packages())
+if (any(installed_packages == FALSE)) {
+  install.packages(packages[!installed_packages])
+}
+
+# Packages loading
+invisible(lapply(packages, library, character.only = TRUE))
+## package loading chunk idea from: 
+## https://stackoverflow.com/questions/4090169/elegant-way-to-check-for-missing-packages-and-install-them
+```
+
+
+# Vaccine Safety
+
+
+
+
+```{r}
+#| label: read-in-wellcome-data
+
+# read in 2018 data
+wgm18 <- read_excel(here::here("data",
+                                               "wgm2018-dataset-crosstabs-all-countries.xlsx"),
+  sheet = "Crosstabs all countries",
+  skip = 2, 
+  col_names = TRUE) 
+
+
+wd <- wgm18 |>
+  janitor::clean_names() |> 
+  select(
+    country:response, column_n_percent_4
+  ) |> 
+  filter(
+    response %in% c("Strongly agree", "Somewhat agree")
+  ) |> 
+  fill(question) |> 
+  filter(
+    question == "Q25 Do you strongly or somewhat agree, strongly or somewhat disagree or neither agree nor disagree with the following statement? Vaccines are safe."
+  )
+
+full_df_2018 <- read_excel(here('data',
+                                   "wgm2018-dataset-crosstabs-all-countries.xlsx"),
+                              sheet = "Full dataset",
+                              skip = 0,
+                              col_names = TRUE)
+# 2018 data dictionary
+data_dict <- read_excel(here('data',
+                                   "wgm2018-dataset-crosstabs-all-countries.xlsx"),
+                              sheet = "Data dictionary",
+                              skip = 0,
+                              col_names = TRUE) |> 
+  filter(
+    `Variable Name` %in% c('WP5', 'Regions_Report')
+  )
+
+# Creating a tibble of 2 columns: country codes and country names
+country_w_codes <- data_dict |> 
+  filter(`Variable Name` == "WP5") |> 
+  mutate(
+    country_code = str_split(
+      string = `Variable Type & Codes*`,
+      pattern = ",",
+      n = length(unique(full_df_2018$WP5)), 
+      simplify = TRUE
+      )
+    
+  ) |> 
+  janitor::clean_names() |> 
+  # drop first few columns
+  select(-variable_type_codes, -variable_name, -variable_type_codes,
+         -variable_label_survey_question, -notes) |> 
+  unlist() |> # turns list into a column
+  as_tibble() |> 
+  rename(country = value) |> 
+  mutate(
+    code = str_split(country, "=", n = 2, simplify = TRUE)[, 1],
+    country = str_split(country, "=", n = 2, simplify = TRUE)[, 2],
+    country = str_remove(country, ","),
+    code = as.numeric(code)
+  )
+
+# create tibble with two columns: Region code and region name
+regions_codes <- data_dict |> 
+  filter(`Variable Name` == "Regions_Report") |> 
+  mutate(
+    country_code = str_split(`Variable Type & Codes*`, ",", n = length(unique(full_df_2018$Regions_Report)), simplify = TRUE)
+    
+  ) |> 
+  janitor::clean_names() |> 
+  # drop first few columns
+  select(-variable_type_codes, -variable_name, -variable_type_codes,
+         -variable_label_survey_question, -notes) |> 
+  unlist() |> 
+  as_tibble() |> 
+  rename(region = value) |> 
+  mutate(
+    code = str_split(region, "=", n = 2, simplify = TRUE)[, 1],
+    region = str_split(region, "=", n = 2, simplify = TRUE)[, 2],
+    region = str_remove(region, ","),
+    code = as.numeric(code)
+  )
+  
+```
+
+
+```{r}
+#| label: former-soviet-union-list
+
+former_soviet <- c(
+  "Armenia", "Azerbaijan", "Belarus", "Estonia", "Georgia",
+  "Kazakhstan", "Kyrgyzstan", "Latvia", "Lithuania", "Moldova",
+  "Tajikistan", "Turkmenistan", "Ukraine", "Uzbekistan", "Russia"
+)
+```
+
+
+
+```{r}
+#| label: wellcome-data-assigning
+# create df with country and assigned region
+country_region <- full_df_2018 |> 
+  select(WP5, Regions_Report) |> 
+  distinct() |> 
+  left_join(country_w_codes, by = c("WP5" = "code")) |> 
+  left_join(regions_codes, by = c("Regions_Report" = "code")) |> 
+  select(country, region) |> 
+ # replace republic of congo and palestine to match Crosstab country list
+ mutate(
+   country = case_when(
+     str_detect(country, "Palestinian") ~ "Palestine",
+     country == "Republic of Congo" ~ "Congo, Rep.",
+     TRUE ~ country
+   )
+ )
+
+# assign region to plotting data frame with a join
+plot_df <- wd |>
+  left_join(country_region, by = "country") |> 
+  # create new regions
+  mutate(
+    continent = case_when(
+      str_detect(region, "Asia") ~ "Asia",
+      str_detect(region, "America") ~ "Americas",
+      str_detect(region, "Europe") ~ "Europe",
+      str_detect(region, "Africa") ~ "Africa",
+      region == "Middle East" ~ "Middle East and North Africa",
+      region == "Aus/NZ" ~ "Oceania",
+      TRUE ~ "Not Assigned"
+    )
+  ) 
+
+```
+
+
+
+
+
+```{r}
+#| label: plotting-df
+
+plot_df <- plot_df |>
+  # calculate percentage of vaccine agree %s by country
+  group_by(country) |>
+  mutate(
+    percentage = sum(column_n_percent_4, na.rm = TRUE)
+  ) |>
+  ungroup() |>
+
+  # calculate median percentage of vaccine agree %s by region
+  group_by(continent) |>
+  mutate(
+    median_percentage = median(percentage, na.rm = TRUE)
+  ) |>
+  ungroup() |>
+  
+  # only keep one row for each country (remove dupes)
+  filter(response != "Somewhat agree") |> 
+  select(country, region, percentage, median_percentage, continent) |>
+  # ordering of region and country
+  mutate(
+    country = fct_reorder(country, percentage)
+  )
+
+
+```
+
+
+## Card 1 {.tabset}
+
+### Tab 1
+```{r}
+#| title: Percentage of People that Believe Vaccines are Safe by Continent
+
+# custom function to get continent sizes
+## CITATION (for adding n to boxplot):
+## https://waterdata.usgs.gov/blog/boxplots/
+n_fun <- function(x){
+  return(data.frame(y = 1.1,
+                    label = paste0(
+                      "n = ", length(x))))
+}
+update_geom_defaults("text",
+                   list(size = 2.7,
+                        family = "sans"))
+
+plot <- plot_df |>
+  filter(continent != "Not Assigned") |>
+  ggplot(mapping = aes(
+    x = continent,
+    y = percentage,
+    fill = continent)) +
+  geom_boxplot() +
+  labs(
+    title = "Percentage of People Who Believe Vaccines are Safe, by Continent",
+    subtitle = "n = number of countries",
+    x = "",
+    y = ""
+  ) +
+  theme_bw() +
+  theme(
+    text = element_text(family = "sans"),
+    legend.position = "none",
+    plot.title = element_text(hjust = 1.13),
+    plot.subtitle = element_text(hjust = -0.67,
+                                 face = "italic"),
+    panel.grid.minor = element_blank(),
+    panel.grid.major = element_blank(),
+    axis.ticks.y = element_blank()
+  ) +
+  scale_y_continuous(
+    labels = scales::percent_format(scale = 100),
+    breaks = seq(0, 1, by = 0.25),
+    limits = c(0.24,1.2)
+  ) +
+  scale_fill_brewer(palette = 2, type = "qual") + 
+  stat_summary(fun.data = n_fun, 
+               geom = "text", 
+               hjust = 0.4) +
+  coord_flip()
+
+ggsave(
+  here::here("docs","images", "improved-wellcome-graph.png"),
+  plot = plot,
+  width = 6,
+  height = 4,
+  dpi = 300
+)
+
+plot
+```
+
+
+The full Wellcome Global Monitor 2018 report can be found here: <https://wellcome.ac.uk/sites/default/files/wellcome-global-monitor-2018.pdf>.
+
+
+
+
+
+
+
+
+### Tab 2
+
+```{r}
+#| label: health-interest-data
+map_df <- wgm18 |>
+  janitor::clean_names() |> 
+  select(
+    country:response, column_n_percent_4
+  ) |> 
+  filter(
+    response == "Yes",
+    str_detect(question, pattern = "Q9")
+  ) |> 
+  rename(
+    percentage_yes = column_n_percent_4
+  ) |> 
+  mutate(
+    percentage_yes = 100*round(percentage_yes, 2)
+  ) |> 
+  select(country, percentage_yes) |> 
+  # creating country 3-digit code column
+  # with the help of the countrycode package, which I asked Gemini about
+  mutate(iso_a3 = countrycode(country,
+                            origin = "country.name",
+                            destination = "iso3c"),
+         iso_a3 = case_when(
+           country == "Kosovo" ~ "XKX",
+           TRUE ~ iso_a3
+         )) 
+
+
+
+
+```
+
+
+```{r}
+#| title: Map of Countries' Interest in Health, Disease, or Medicine
+## Citation
+## To write this code chunk I asked Gemini to help me utilize the rnaturalearth and leaflet packages
+map <- leaflet() |> 
+  addTiles() 
+
+
+
+# Get world map data from Natural Earth
+world <- ne_countries(scale = "medium", # size
+                      returnclass = "sf") # output object
+
+# Merge Poll data with the world map data
+world_data <- world |>
+  left_join(map_df, by = c("adm0_a3" = "iso_a3"))
+
+# Define color palette based on percentage
+# idea to use rainbow() from Gemini
+pal <- colorNumeric(
+  palette = "YlOrRd", # Color palette
+  domain = world_data$percentage_yes
+)
+
+# Create leaflet map
+# add a plot label
+map_plot <- world_data |> 
+  leaflet() |> 
+  addTiles() |> 
+  addPolygons(
+    fillColor = ~pal(percentage_yes),
+    color = "black", # Border color
+    weight = 1, # Border weight
+    fillOpacity = 0.7,
+    highlightOptions = highlightOptions(
+      weight = 2,
+      color = "white",
+      fillOpacity = 0.7,
+      bringToFront = TRUE
+    ),
+    # Tooltip label
+    # country: %
+    label = ifelse(
+      is.na(world_data$percentage_yes),
+      paste0('No data available.'),
+      paste0(world_data$country,
+              ": ",
+              world_data$percentage_yes, "%")), 
+    labelOptions = labelOptions(
+      style = list("font-weight" = "normal", padding = "3px 8px"),
+      textsize = "15px",
+      direction = "auto"
+    )
+  ) |> 
+  
+  # Graph title
+  # consulted Gemini for use of addControl
+  
+  addControl(
+    html = "<div style='font-size: 16px; font-weight: bold; margin: 5px;'>
+    Percentage of People that are interested in health, disease, or medicine</div>
+    \n   (said 'Yes' on Question 9 in Gallup Poll 2018)",
+    position = "bottomleft" # Adjust position as needed
+  )
+
+# Display the map
+map_plot
+```
+
+## Card 2 - explanation
+
+The first visualization is a remake of the original Wellcome Global Monitor 2018 report, which can be found at the link in Tab 1. The second visualization is an interactive map of the percentage of people that are interested in health, disease, or medicine (said "Yes" on Question 9 in the Gallup Poll 2018). This map was created using the leaflet package and the Natural Earth dataset.
+
+# Second page
+
+
+```{r}
+#| label: third-improved-data-creation
+
+# Create a data frame with the percentage of people that agree vaccines are safe worldwide
+worldwide_q7_8 <- wgm18 |>
+  janitor::clean_names() |> 
+  select(
+    country:response, column_n_percent_4
+  ) |> 
+  # copy question to fill NAs
+  fill(question) |> 
+  filter(
+    str_detect(question, pattern = "Q7") |
+      str_detect(question, pattern = "Q8"),
+    response == "Yes"
+  ) |> 
+  mutate(
+    percentage = column_n_percent_4
+  ) |> 
+  group_by(question, response) |> 
+  summarise(
+    percentage = round(mean(percentage, na.rm = TRUE), 2),
+    region = "World",
+    country = "World"
+  ) |>
+  ungroup() |> 
+  mutate(
+    question = 
+      case_when(
+        str_detect(question, pattern = "Q8") ~ "Q8",
+        str_detect(question, pattern = "Q7") ~ "Q7"
+      
+  )) |> 
+  select(-response) |> 
+  # pivot
+  pivot_wider(
+    names_from = question,
+    values_from = percentage
+  )
+
+
+q7_8_data <- wgm18 |>
+  janitor::clean_names() |> 
+  select(
+    country:response, column_n_percent_4
+  ) |> 
+  fill(question) |> 
+  filter(
+    str_detect(question, pattern = "Q7") |
+      str_detect(question, pattern = "Q8"),
+    response == "Yes"
+  ) |> 
+  mutate(
+    percentage = column_n_percent_4
+  ) |> 
+  select(country, question, percentage, response)  |> 
+  left_join(country_region, by = "country") |> 
+  mutate(
+    region = ifelse(
+      region == "Aus/NZ", "Australia/New Zealand", region),
+    question = case_when(
+      str_detect(question, pattern = "Q7") ~ "Q7",
+      str_detect(question, pattern = "Q8") ~ "Q8"
+    )
+    ) |>
+  group_by(country, region, question, response) |> 
+  summarize(
+    percentage = round(mean(percentage, na.rm = TRUE), 2)
+  ) |> 
+  ungroup() |> 
+  select(-response) |> 
+    # pivot
+  pivot_wider(
+    names_from = question,
+    values_from = percentage
+  )
+
+
+# join with worldwide summary data
+q7_8_data <- q7_8_data |> 
+  bind_rows(worldwide_q7_8) 
+
+
+```
+
+```{r}
+#| label: calculate-medians
+
+medians <- q7_8_data |> 
+  filter(region != "World") |>
+  summarize(
+    Q7 = median(Q7, na.rm = TRUE),
+    Q8 = median(Q8, na.rm = TRUE)
+  ) |> as_tibble(
+    rownames = "median",
+    colnames = c("Q7", "Q8")
+  )
+
+
+```
+
+
+
+```{r}
+#| title: Countries' Interest in Science vs. Interest in Health by Region in 2018
+# create a scatterplot comparing countries' interest in science and health, with q7 on the y axis
+# write the code for the plot
+
+# color palette
+pal <- rainbow(length(unique(q7_8_data$region)), start = 0, end = 0.9)
+
+plot <- q7_8_data |> 
+  mutate(isWorld = ifelse(country == "World", TRUE, FALSE)) |>
+  ggplot(mapping = aes(
+    x = Q8,
+    y = Q7,
+    color = region,
+    label = country,
+    size = isWorld,
+    shape = isWorld,
+    text = ifelse(
+      isWorld == FALSE,
+      paste0("x:", Q8, "<br>y: ", Q7, "<br>Country: ",
+             country, "<br>Region: ",region),
+      paste0("Worldwide<br>x: ", Q8, "<br>y: ", Q7)
+    ))) +
+  geom_jitter() +
+  labs(
+    x = "",
+    y = ""
+  ) +
+  theme_bw() +
+  theme(
+    text = element_text(family = "sans"),
+    legend.position = "none",
+    plot.title = element_text(hjust = -0.129),
+    plot.subtitle = element_text(hjust = -0.055,
+                                 face = "italic"),
+    panel.grid.minor = element_blank(),
+    panel.grid.major = element_blank(),
+    axis.ticks.y = element_blank()
+  ) +
+  scale_x_continuous(
+    labels = scales::percent_format(scale = 100),
+    breaks = seq(0, 1, by = 0.25),
+    limits = c(0,1)
+  ) +
+  
+  scale_y_continuous(
+    labels = scales::percent_format(scale = 100),
+    breaks = seq(0, 1, by = 0.25),
+    limits = c(0,1)
+  ) +
+  
+  scale_color_manual(values = pal) +
+  coord_cartesian(xlim=c(0,1), ylim=c(0,1)) +
+  # add median vertical and horizontal lines
+  geom_hline(yintercept = medians$Q7, linetype = "dashed", color = "black") +
+  geom_vline(xintercept = medians$Q8, linetype = "dashed", color = "black") +
+  scale_shape_manual(values = c(15, 18)) +
+  scale_size_manual(values = c(2, 4)) +
+  annotate(
+    "text", x = medians$Q8 + 0.09, y = 0, 
+    label = paste0("Median: ", 100*medians$Q8, "%"), size = 4, color = "black"
+    ) +
+    annotate(
+    "text", y = medians$Q7 + 0.05, x = 0.04, 
+    label = paste0("Median: ", 100*medians$Q7,"%"), size = 4, color = "black"
+    )
+
+
+# Re-make Plot but implementing hover tooltips to show percentage and country name when you're on the point
+# Asked Gemini how to left-justify plot title
+# Used GitHub copilot to autocomplete for tooltip option
+plotly_plot <- plot |> 
+  ggplotly(tooltip = c("text")) 
+
+
+plotly_plot
+```
+
+
+
+
+
