@@ -33,3 +33,8 @@ containing your source code **and** a link to your [published]{.underline}
 dashboard. You are expected to publish your dashboard through
 [Quarto Pub](https://quarto.org/docs/publishing/quarto-pub.html), a free
 publishing service for static content created with Quarto. 
+
+
+## Data Used
+I used the Wellcome Global Monitor 2018 data set and its 2020 versions as well which can be found online.
+I did not upload them to the repository as they are too large.
