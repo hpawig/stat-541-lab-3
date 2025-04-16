@@ -28,7 +28,7 @@ logo-alt: "Red colored navigation logo pointing upward."
 # Package names
 packages <- c("tidyverse", "here", "readxl", "scales", "RColorBrewer", "leaflet",
               "sf", "rnaturalearth", "countrycode", "plotly", "janitor",
-              "rnaturalearthdata")
+              "rnaturalearthdata", "readr", "kableExtra")
 
 
 # Install packages not yet installed
@@ -44,23 +44,23 @@ invisible(lapply(packages, library, character.only = TRUE))
 ```
 
 
-# Vaccine Safety
+# Opinion: Vaccines
 
 
 
 
 ```{r}
-#| label: read-in-wellcome-data
+#| label: read-in-wellcome-data-2018
 
 # read in 2018 data
-wgm18 <- read_excel(here::here("data",
-                                               "wgm2018-dataset-crosstabs-all-countries.xlsx"),
+wgm18 <- read_excel("/Users/hannahpawig/Desktop/Cal Poly R Projects/STAT541/data/data-lab3/wgm2018-dataset-crosstabs-all-countries.xlsx",
   sheet = "Crosstabs all countries",
   skip = 2, 
-  col_names = TRUE) 
+  col_names = TRUE) |> 
+  fill(Question)
 
 
-wd <- wgm18 |>
+wd_q25<- wgm18 |>
   janitor::clean_names() |> 
   select(
     country:response, column_n_percent_4
@@ -68,19 +68,16 @@ wd <- wgm18 |>
   filter(
     response %in% c("Strongly agree", "Somewhat agree")
   ) |> 
-  fill(question) |> 
   filter(
     question == "Q25 Do you strongly or somewhat agree, strongly or somewhat disagree or neither agree nor disagree with the following statement? Vaccines are safe."
   )
 
-full_df_2018 <- read_excel(here('data',
-                                   "wgm2018-dataset-crosstabs-all-countries.xlsx"),
+full_df_2018 <- read_excel(path = "/Users/hannahpawig/Desktop/Cal Poly R Projects/STAT541/data/data-lab3/wgm2018-dataset-crosstabs-all-countries.xlsx",
                               sheet = "Full dataset",
                               skip = 0,
                               col_names = TRUE)
 # 2018 data dictionary
-data_dict <- read_excel(here('data',
-                                   "wgm2018-dataset-crosstabs-all-countries.xlsx"),
+data_dict <- read_excel(path = "/Users/hannahpawig/Desktop/Cal Poly R Projects/STAT541/data/data-lab3/wgm2018-dataset-crosstabs-all-countries.xlsx",
                               sheet = "Data dictionary",
                               skip = 0,
                               col_names = TRUE) |> 
@@ -137,6 +134,23 @@ regions_codes <- data_dict |>
   
 ```
 
+```{r}
+#| label: read-in-wellcome-data-2020
+#| message: false
+
+# read in 2020 crosstab data
+wgm20 <- read_excel(path = 
+                      "/Users/hannahpawig/Desktop/Cal Poly R Projects/STAT541/data/data-lab3/wgm2020-mentalhealthmodule-crossnational-tabs.xlsx",
+  sheet = "Socio-economic & demographic",
+  skip = 2, 
+  col_names = TRUE)
+
+# Read in 2020 file
+wgm_full_df <- read_csv("~/Desktop/Cal Poly R Projects/STAT541/data/data-lab3/wgm_full_wave2_public_file_final (1)_csv.csv")
+
+```
+
+
 
 ```{r}
 #| label: former-soviet-union-list
@@ -169,7 +183,7 @@ country_region <- full_df_2018 |>
  )
 
 # assign region to plotting data frame with a join
-plot_df <- wd |>
+plot_df <- wd_q25|>
   left_join(country_region, by = "country") |> 
   # create new regions
   mutate(
@@ -222,7 +236,7 @@ plot_df <- plot_df |>
 
 ## Card 1 {.tabset}
 
-### Tab 1
+### Graph
 ```{r}
 #| title: Percentage of People that Believe Vaccines are Safe by Continent
 
@@ -294,7 +308,7 @@ The full Wellcome Global Monitor 2018 report can be found here: <https://wellcom
 
 
 
-### Tab 2
+### Map
 
 ```{r}
 #| label: health-interest-data
@@ -401,10 +415,106 @@ map_plot
 
 ## Card 2 - explanation
 
-The first visualization is a remake of the original Wellcome Global Monitor 2018 report, which can be found at the link in Tab 1. The second visualization is an interactive map of the percentage of people that are interested in health, disease, or medicine (said "Yes" on Question 9 in the Gallup Poll 2018). This map was created using the leaflet package and the Natural Earth dataset.
+The first visualization is a remake of the original Wellcome Global Monitor 2018 report, (link may be found in the Graph tab). The second visualization is an *interactive* map of the percentage of people that are interested in health, disease, or medicine (said "Yes" on Question 9 in the Gallup Poll 2018). This map was created using the leaflet package and the Natural Earth dataset and takes inspiration from the 2018 report's Chart 2.14 (Wellcome Global Monitor 2019: Understanding and Interest in Science and Health, 39).
 
-# Second page
+These two visualizations together might show that countries who 
 
+# Comparing the Years
+
+
+## Card 4 - Comparing 2018 and 2020 opinions (Quick facts) {.tabset}
+```{r}
+#| label: 2018-data-govt-trust
+wgm18_Q21 <- wgm18 |> 
+  janitor::clean_names() |> 
+  select(
+    country:response, column_n_percent_4
+  ) |> 
+  filter(
+    response %in% c("Some", "A lot"),
+    str_detect(question, pattern = "Q21") | str_detect(question, pattern = "Q11B")
+  ) |> 
+  group_by(question) |> 
+  summarize(
+    percentage = round(mean(column_n_percent_4, na.rm = TRUE), 3)
+  ) |> 
+  mutate(
+    percentage = percent_format(
+      accuracy = 0.1,
+      scale = 100
+    )(percentage),
+    question = case_when(
+      str_detect(question, pattern = "Q21") ~ "Trust in government health and medical advice (Q21)",
+      str_detect(question, pattern = "Q11B") ~ "Level of trust in national government (Q11B)"
+    )
+  )
+
+
+
+```
+
+### Survey Question Information
+Answer choices for Questions 11B and 21 are a lot, some, not much, or not at all. The percentages include those who responded with a lot or some trust. Answer choices for the 2020 questions are extremely important, somewhat important, not too important, not important at all, or don't know/refused to answer. The percentages include those who responded with extremely important or somewhat important.
+
+```{r}
+#| label: 2020-data-govt-research
+
+# 2020 data on opinion about national government funding research on cancer and/or anxiety
+
+
+wgm20_govt <- wgm20 |> 
+  clean_names() |> 
+  filter(
+    wellcome_tag %in% c("MH4A", "MH4B"),
+    x3 %in% c("Extremely important", "Somewhat important")
+  ) |> 
+  group_by(question) |> 
+  summarize(
+    percentage = round(mean(column_n_percent_4, na.rm = TRUE), 3)
+  ) |> 
+  mutate(
+    percentage = percent_format(
+      accuracy = 0.1,
+      scale = 100
+    )(percentage)
+  )
+```
+
+### Tables
+#### 2018
+```{r}
+#| label: quick-fact-tables-2018
+# Tables
+
+wgm18_Q21 |> 
+  rename(`Question Topic` = question,
+         Percentage = percentage) |> 
+  kbl(caption = "General Trust in National Government and Trust in Government Health/Medical Advice in 2018") |> 
+  kable_classic(html_font = "Cambria")
+
+```
+
+#### 2020
+```{r}
+#| label: quick-fact-tables-2020
+wgm20_govt |> 
+  rename(Question = question,
+         Percentage = percentage) |> 
+  kbl(caption = "General Opinion on Need for Government Research in Health and Medicine in 2020") |> 
+  kable_classic(html_font = "Cambria")
+```
+
+
+
+## Card 5 - Explanation
+Though the 2018 and 2020 Wellcome Global Monitor surveys did not ask the same questions, they have questions regarding national government. In 2018, the general trust in national government and trust in government health and medical advice were asked. In 2020, the survey asked about the importance of government funding for research on cancer and anxiety. The tables above show the percentage of people who responded with a lot or some trust in their national government in 2018 and the percentage of people who responded with extremely important or somewhat important for government funding for research on cancer and anxiety in 2020.
+
+It seems that in 2020 (post COVID pandemic), larger percentages of the world believe the government should do more research on either, which might lead to greater trust in government advice about health and medicine. It's noted in the report that less countries were surveyed in 2020 than in 2018 due to the global pandemic and also required a change in surveying method in the more recent survey (conducted only through phone call in 2020).
+
+
+# Interest in Health and Science
+
+## Card 6
 
 ```{r}
 #| label: third-improved-data-creation
@@ -586,8 +696,4 @@ plotly_plot <- plot |>
 
 plotly_plot
 ```
-
-
-
-
 
