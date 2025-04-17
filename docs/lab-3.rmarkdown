@@ -248,6 +248,7 @@ update_geom_defaults("text",
                    list(size = 4,
                         family = "sans"))
 
+# create boxplot of vaccine %s by continent; exclude NA continent
 plot <- plot_df |>
   filter(continent != "Not Assigned") |>
   ggplot(mapping = aes(
@@ -265,7 +266,7 @@ plot <- plot_df |>
   theme(
     text = element_text(family = "sans"),
     legend.position = "none",
-    plot.title = element_text(hjust = 0.2),
+    plot.title = element_text(hjust = -0.2),
     plot.subtitle = element_text(hjust = -0.37,
                                  face = "italic"),
     panel.grid.minor = element_blank(),
@@ -273,7 +274,7 @@ plot <- plot_df |>
     axis.ticks.y = element_blank()
   ) +
   scale_y_continuous(
-    labels = scales::percent_format(scale = 100),
+    labels = scales::percent_format(scale = 100), # axis labels from proportions to %s
     breaks = seq(0, 1, by = 0.25),
     limits = c(0.24,1.2)
   ) +
@@ -1056,5 +1057,6 @@ It seems that in 2020 (post COVID pandemic), larger percentages of the world bel
 The full Wellcome Global Monitor 2018 report can be found here: <https://wellcome.ac.uk/sites/default/files/wellcome-global-monitor-2018.pdf>.
 
 The full Wellcome Global Monitor 2020 report and data sets can be found here: <https://wellcome.org/reports/wellcome-global-monitor-covid-19/2020>.
+
 
 
