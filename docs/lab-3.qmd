@@ -248,6 +248,7 @@ update_geom_defaults("text",
                    list(size = 4,
                         family = "sans"))
 
+# create boxplot of vaccine %s by continent; exclude NA continent
 plot <- plot_df |>
   filter(continent != "Not Assigned") |>
   ggplot(mapping = aes(
@@ -265,7 +266,7 @@ plot <- plot_df |>
   theme(
     text = element_text(family = "sans"),
     legend.position = "none",
-    plot.title = element_text(hjust = 0.2),
+    plot.title = element_text(hjust = -0.2),
     plot.subtitle = element_text(hjust = -0.37,
                                  face = "italic"),
     panel.grid.minor = element_blank(),
@@ -273,7 +274,7 @@ plot <- plot_df |>
     axis.ticks.y = element_blank()
   ) +
   scale_y_continuous(
-    labels = scales::percent_format(scale = 100),
+    labels = scales::percent_format(scale = 100), # axis labels from proportions to %s
     breaks = seq(0, 1, by = 0.25),
     limits = c(0.24,1.2)
   ) +
@@ -595,7 +596,7 @@ plotly_plot
 
 This scatterplot is a remake of Chart 2.15 in the 2018 Wellcome Global Monitor Report titled, "Scatterplot exploring interest in science by those who have sought information."
 
-The y-axis shows the percentage of people who are interested in health, disease, or medicine and this information was gauged using the question "Q6 Have you, personally, tried to get any information about science in the past 30 days?". The x-axis shows the percentage of people who are interested in science (Q8: "Q8 Would you, personally, like to know more about science?"). The median values for each question are shown as dashed lines. The countries are colored by region and the size of the point is larger for the worldwide data point. The tooltip shows the country name and percentage when hovering over a point.
+The y-axis shows the percentage of people who are interested in health, disease, or medicine and this information was gauged using the survey question 6: "Have you, personally, tried to get any information about science in the past 30 days?". The x-axis shows the percentage of people who are interested in science (survey question 8: "Would you, personally, like to know more about science?"). The median values for each question are shown as dashed lines. The countries are colored by region and the size of the point is larger for the worldwide data point. The tooltip shows the country name and percentage when hovering over a point.
 
 ## Column 2 - 2018 Scatterplot about countries' interest in Health, Medicine, and Disease
 
@@ -800,7 +801,7 @@ Hovering over the points in the scatterplot gives information on the exact count
 
 ## Column 1 {.tabset}
 
-### Background
+### Background {.callout}
 In 2020, about 45.7% of people surveyed in the 2020 Wellcome Global Monitor report said that they believe that mental health is more or as important as one's physical health when regarding one's well-being.
 
 According to the 2020 Wellcome Gallup Monitor report, the survey was more focused on the importance of mental health. The following table shows some more worldwide responses in 2020 related to anxiety, depression, and social media -- common topics when it comes to mental health today.
@@ -1045,16 +1046,20 @@ Answer choices for the two 2020 questions used to create the tables are extremel
 
 ## Column 2
 
-### Row 1 - Commentary
+#### Row 1 - Commentary
 
 Though the 2018 and 2020 Wellcome Global Monitor surveys did not ask the same questions, they have questions regarding national government. In 2018, the general trust in national government and trust in government health and medical advice were asked. In 2020, the survey asked about the importance of government funding for research on cancer and anxiety. The tables above show the percentage of people who responded with a lot or some trust in their national government in 2018 and the percentage of people who responded with extremely important or somewhat important for government funding for research on cancer and anxiety in 2020.
 
 It seems that in 2020 (post COVID pandemic), larger percentages of the world believe the government should do more research on either, which might lead to greater trust in government advice about health and medicine. It's noted in the report that less countries were surveyed in 2020 than in 2018 due to the global pandemic and also required a change in surveying method in the more recent survey (conducted only through phone call in 2020).
 
 
-### Row 2 - Link to 2018 and 2020 data
+#### Row 2 - Link to 2018 and 2020 data
 The full Wellcome Global Monitor 2018 report can be found here: <https://wellcome.ac.uk/sites/default/files/wellcome-global-monitor-2018.pdf>.
 
 The full Wellcome Global Monitor 2020 report and data sets can be found here: <https://wellcome.org/reports/wellcome-global-monitor-covid-19/2020>.
 
+
+#### Other information
+- Dashboard theme from <https://bootswatch.com/simplex/>.
+- Navigation Icon from <https://www.flaticon.com/free-icons/navigation>.
 
